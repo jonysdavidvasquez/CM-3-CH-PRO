@@ -1,6 +1,7 @@
 #include "PluginProcessor.h"
 #include "PluginEditor.h"
 #include <cmath>
+#include <algorithm>
 
 namespace
 {
@@ -80,7 +81,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout CM3CHAudioProcessor::createL
 
     F ("lvc", "LVC", 1.f);
 
-    // real range in dB: -30 ... 0
+    // rango real en dB: -30 ... 0  (la UI lo maneja normalizado 0..1)
     l.add (std::make_unique<AudioParameterFloat> (
         ParameterID { "lvcRed", 1 },
         "LVC Reduction",
@@ -198,7 +199,7 @@ void CM3CHAudioProcessor::processBlock (juce::AudioBuffer<float>& buf, juce::Mid
     float grMax[kBands] = { 0, 0, 0 };
     int wp = fifoPos.load();
 
-    float currentLvcReduction = 0.f;
+    float currentLvcReduction = 0.f;   // pico de reduccion (dB) dentro del bloque
 
     for (int s = 0; s < n; ++s)
     {
@@ -251,9 +252,13 @@ void CM3CHAudioProcessor::processBlock (juce::AudioBuffer<float>& buf, juce::Mid
                 y *= lvcGain;
                 y = softLimitCurve (y, lvcDb);
 
-                const float post = std::abs (y);
-                const float ratio = std::max (1.0e-6f, post / std::max (pre, 1.0e-6f));
-                currentLvcReduction = std::max (0.f, 20.f * std::log10 (1.f / ratio));
+                // reduccion real (dB) = pre/post; se ignoran muestras casi en silencio
+                if (pre > 1.0e-3f)
+                {
+                    const float post = std::abs (y);
+                    const float red = 20.f * std::log10 (pre / std::max (post, 1.0e-6f));
+                    currentLvcReduction = std::max (currentLvcReduction, red);
+                }
             }
 
             y *= outG;
@@ -267,8 +272,10 @@ void CM3CHAudioProcessor::processBlock (juce::AudioBuffer<float>& buf, juce::Mid
 
     fifoPos.store (wp);
 
-    const float smoothed = lvcReductionDb.load();
-    lvcReductionDb.store (smoothed + (currentLvcReduction - smoothed) * 0.08f);
+    // medidor LVC: pico del bloque, ataque rapido y release suave
+    const float lvcTarget = (bypT > 0.5f || ! lvcOn) ? 0.f : juce::jlimit (0.f, 30.f, currentLvcReduction);
+    const float prevLvc = lvcReductionDb.load();
+    lvcReductionDb.store (prevLvc + (lvcTarget - prevLvc) * (lvcTarget > prevLvc ? 0.6f : 0.12f));
 
     for (int b = 0; b < kBands; ++b)
         grDb[(size_t) b].store (bypT > 0.5f ? 0.f : grMax[b]);

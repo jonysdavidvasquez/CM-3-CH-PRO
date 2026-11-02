@@ -22,17 +22,10 @@ CM3CHEditor::CM3CHEditor (CM3CHAudioProcessor& p) : AudioProcessorEditor (&p), p
              {
                  if (auto* prm = proc.apvts.getParameter (v["id"].toString()))
                  {
-                     if (auto* ranged = dynamic_cast<juce::RangedAudioParameter*> (prm))
-                     {
-                         const auto range = ranged->getNormalisableRange();
-                         const float raw = (float) (double) v["v"];
-                         const float clamped = juce::jlimit (range.start, range.end, raw);
-                         prm->setValueNotifyingHost (clamped);
-                     }
-                     else
-                     {
-                         prm->setValueNotifyingHost ((float) (double) v["v"]);
-                     }
+                     // El valor que llega desde la UI es SIEMPRE normalizado (0..1),
+                     // incluido lvcRed (su rango real en dB, -30..0, lo maneja el APVTS).
+                     const float raw = (float) (double) v["v"];
+                     prm->setValueNotifyingHost (juce::jlimit (0.f, 1.f, raw));
                  }
              })
              .withEventListener ("gesture", [this] (const juce::var& v)

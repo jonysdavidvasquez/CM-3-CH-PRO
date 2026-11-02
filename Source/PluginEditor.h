@@ -1,6 +1,10 @@
 #pragma once
 #include "PluginProcessor.h"
 #include <juce_gui_extra/juce_gui_extra.h>
+#include <array>
+#include <atomic>
+#include <memory>
+#include <optional>
 
 class CM3CHEditor : public juce::AudioProcessorEditor, private juce::Timer
 {
