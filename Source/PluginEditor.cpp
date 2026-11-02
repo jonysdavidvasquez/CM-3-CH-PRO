@@ -26,13 +26,12 @@ CM3CHEditor::CM3CHEditor (CM3CHAudioProcessor& p) : AudioProcessorEditor (&p), p
                      {
                          const auto range = ranged->getNormalisableRange();
                          const float raw = (float) (double) v["v"];
-                         // UI values are in the parameter's units; JUCE's host notification API requires 0..1.
-                         const float normalized = range.convertTo0to1 (juce::jlimit (range.start, range.end, raw));
-                         prm->setValueNotifyingHost (normalized);
+                         const float clamped = juce::jlimit (range.start, range.end, raw);
+                         prm->setValueNotifyingHost (clamped);
                      }
                      else
                      {
-                         prm->setValueNotifyingHost (juce::jlimit (0.f, 1.f, (float) (double) v["v"]));
+                         prm->setValueNotifyingHost ((float) (double) v["v"]);
                      }
                  }
              })
@@ -80,26 +79,21 @@ void CM3CHEditor::timerCallback()
         return;
 
     proc.computeSpectrum (spec);
+
     juce::Array<juce::var> sp, gr;
     for (float x : spec) sp.add (x);
     for (auto& g : proc.grDb) gr.add (g.load());
 
     juce::DynamicObject::Ptr params = new juce::DynamicObject();
     for (auto* prm : proc.getParameters())
-    {
-        if (auto* ranged = dynamic_cast<juce::RangedAudioParameter*> (prm))
-        {
-            float value = ranged->getValue(); // normalized APVTS value
-            if (ranged->paramID == "lvcRed")
-                value = ranged->convertFrom0to1 (value); // UI expects threshold in dBFS
-            params->setProperty (ranged->paramID, value);
-        }
-    }
+        if (auto* r = dynamic_cast<juce::RangedAudioParameter*> (prm))
+            params->setProperty (r->paramID, r->getValue());
 
     juce::DynamicObject::Ptr o = new juce::DynamicObject();
     o->setProperty ("spec", sp);
     o->setProperty ("gr", gr);
-    o->setProperty ("lvc", proc.lvcReductionDb.load()); // measured positive dB; UI draws the reduction arc
+    o->setProperty ("lvc", (float) proc.lvcReductionDb.load());
     o->setProperty ("p", juce::var (params.get()));
+
     web->emitEventIfBrowserIsVisible ("state", juce::var (o.get()));
 }
