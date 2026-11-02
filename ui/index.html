@@ -22,7 +22,7 @@ var S={b:[
  {n:'MID',c:Bl,bg:'#0d4a85',x:340,th:0.835,ra:0.333,ga:0.5,at:0.393,re:0.265,kn:0.213,sat:0,sam:0,lim:0,mu:0,x10:0},
  {n:'HIGH',c:O,bg:'#8a4308',x:560,th:0.839,ra:0.333,ga:0.5,at:0.396,re:0.265,kn:0.2,sat:0,sam:0,lim:0,mu:0,x10:0}],
  g:{lo:.564,hi:.352,inn:.5,out:.5,byp:0,lvc:1,lvcRed:-0.5,fir:0},adv:1};
-var JB=(window.__JUCE__&&window.__JUCE__.backend)||null,native=false,spec=[],grN=[0,0,0],sent={},lastH=0;
+var JB=(window.__JUCE__&&window.__JUCE__.backend)||null,native=false,spec=[],grN=[0,0,0],sent={},lastH=0,lvcAct=0;
 var BK=['th','ra','ga','at','re','kn','sam','sat','lim','mu','x10'],GK=['lo','hi','inn','out','byp','lvc','lvcRed','fir'],PID=[];
 for(var bi_=0;bi_<3;bi_++)BK.forEach(function(k){PID.push('b'+bi_+'_'+k)});GK.forEach(function(k){PID.push(k)});
 function pget(id){var m=id.match(/^b(\d)_(\w+)$/);return m?S.b[+m[1]][m[2]]:S.g[id]}
@@ -30,9 +30,11 @@ function pset(id,v){var m=id.match(/^b(\d)_(\w+)$/);if(m)S.b[+m[1]][m[2]]=v;else
 function flush(){if(!JB)return;PID.forEach(function(id){var v=pget(id);if(sent[id]!==v){sent[id]=v;JB.emitEvent('setParam',{id:id,v:v})}})}
 function gid(d){if(d.xk)return d.xk;var m=d.k.split(',');return m[0]=='g'?m[1]:'b'+m[0]+'_'+m[1]}
 function gest(d,on){if(JB)JB.emitEvent('gesture',{id:gid(d),on:!!on})}
-if(JB){JB.addEventListener('state',function(m){native=true;spec=m.spec;grN=m.gr;var ch=false,dk=drag?gid(drag):null;
+if(JB){JB.addEventListener('state',function(m){
+ native=true;spec=m.spec;grN=m.gr||[0,0,0];lvcAct=typeof m.lvc==='number'?m.lvc:0;var ch=false,dk=drag?gid(drag):null;
  PID.forEach(function(id){var v=m.p[id];if(v===undefined||id===dk)return;if(pget(id)!==v){pset(id,v);ch=true}sent[id]=v});
- if(ch&&!drag)render()});JB.emitEvent('ready',{})}
+ if(ch&&!drag)render()
+});JB.emitEvent('ready',{})}
 var drag=null,bars=[],caps=[],disp=[],grS=[],N=31,PX=46,BW=20,Y0=52,Y1=178;
 for(var i=0;i<N;i++){disp.push(-90);grS.push(0)}
 function fi(i){return 20*Math.pow(2,i/3)}
@@ -66,18 +68,23 @@ function knob(cx,cy,r,col,key,label){var th=/,th$/.test(key),bi=+key.split(',')[
  +'<circle cx="'+cx+'" cy="'+cy+'" r="'+(r+6)+'" fill="transparent" data-k="'+key+'" style="cursor:ns-resize"/>'}
 function miniLvcKnob(cx,cy,r,col,key){
     var o=ref(key),v=o[0][o[1]];
-    var u=(v+30)/30;
-    var a=-135+270*u;
-    var tip=pt(cx,cy,r+4,a),b1=pt(cx,cy,r-6,a-8),b2=pt(cx,cy,r-6,a+8);
+    var setNorm = (v + 30) / 30;
+    var setA = -135 + 270 * setNorm;
+    var act = Math.max(0, Math.min(30, lvcAct));
+    var actNorm = Math.max(0, Math.min(1, act / 30));
+    var actA = -135 + 270 * actNorm;
+    var tip=pt(cx,cy,r+4,setA),b1=pt(cx,cy,r-6,setA-8),b2=pt(cx,cy,r-6,setA+8);
     var lab=(drag&&drag.k==key)?fmt(key,v):v.toFixed(1)+' dB';
-    return '<circle cx="'+cx+'" cy="'+cy+'" r="'+r+'" fill="#2b2238" stroke="'+INK+'" stroke-width="2"/>'
-        +'<circle cx="'+cx+'" cy="'+cy+'" r="'+(r-2)+'" fill="none" stroke="#4a3d5c" stroke-width="2" stroke-dasharray="2 3"/>'
-        +'<path d="'+arc(cx,cy,r-3,-135,135)+'" stroke="#171121" stroke-width="4" fill="none" stroke-linecap="round"/>'
-        +'<path d="'+arc(cx,cy,r-3,-135,a)+'" stroke="'+col+'" stroke-width="4" fill="none" stroke-linecap="round"/>'
-        +'<circle cx="'+cx+'" cy="'+cy+'" r="'+(r-9)+'" fill="#3b2f4d" stroke="#2b2238" stroke-width="2"/>'
-        +'<polygon points="'+tip[0].toFixed(1)+','+tip[1].toFixed(1)+' '+b1[0].toFixed(1)+','+b1[1].toFixed(1)+' '+b2[0].toFixed(1)+','+b2[1].toFixed(1)+'" fill="'+col+'" stroke="'+INK+'" stroke-width="1.5" stroke-linejoin="round"/>'
-        +'<circle cx="'+cx+'" cy="'+cy+'" r="'+(r+6)+'" fill="transparent" data-k="'+key+'" style="cursor:ns-resize"/>'
-        +'<text x="'+(cx+25)+'" y="'+(cy+3)+'" text-anchor="start" font-size="8" font-weight="600" fill="#e9defc" font-family="'+FN+'">'+lab+'</text>';
+    return '<path d="'+arc(cx,cy,r+5,-135,135)+'" stroke="#1a1a1f" stroke-width="2" fill="none" opacity="0.7"/>' +
+           '<path d="'+arc(cx,cy,r+5,-135,actA)+'" stroke="#ff8a1f" stroke-width="2.5" fill="none" opacity="'+(act>0.2?0.95:0.2)+'"/>' +
+           '<path d="'+arc(cx,cy,r-3,-135,135)+'" stroke="#171121" stroke-width="4" fill="none" stroke-linecap="round"/>' +
+           '<path d="'+arc(cx,cy,r-3,-135,setA)+'" stroke="'+col+'" stroke-width="4" fill="none" stroke-linecap="round"/>' +
+           '<circle cx="'+cx+'" cy="'+cy+'" r="'+r+'" fill="#2b2238" stroke="'+INK+'" stroke-width="2"/>' +
+           '<circle cx="'+cx+'" cy="'+cy+'" r="'+(r-2)+'" fill="none" stroke="#4a3d5c" stroke-width="2" stroke-dasharray="2 3"/>' +
+           '<circle cx="'+cx+'" cy="'+cy+'" r="'+(r-9)+'" fill="#3b2f4d" stroke="#2b2238" stroke-width="2"/>' +
+           '<polygon points="'+tip[0].toFixed(1)+','+tip[1].toFixed(1)+' '+b1[0].toFixed(1)+','+b1[1].toFixed(1)+' '+b2[0].toFixed(1)+','+b2[1].toFixed(1)+'" fill="'+col+'" stroke="'+INK+'" stroke-width="1.5" stroke-linejoin="round"/>' +
+           '<circle cx="'+cx+'" cy="'+cy+'" r="'+(r+6)+'" fill="transparent" data-k="'+key+'" style="cursor:ns-resize"/>' +
+           '<text x="'+(cx+25)+'" y="'+(cy+3)+'" text-anchor="start" font-size="8" font-weight="600" fill="#e9defc" font-family="'+FN+'">'+lab+'</text>';
 }
 function slider(x,y,w,col,key,label){var o=ref(key),v=o[0][o[1]],lab=(drag&&drag.k==key)?fmt(key,v):label;
  return T(x,y+4,lab,11,'#f3eaff','start')+'<rect x="'+(x+34)+'" y="'+(y-3)+'" width="'+w+'" height="10" rx="5" fill="#171121" stroke="'+INK+'"/><rect x="'+(x+34)+'" y="'+(y-3)+'" width="'+(w*v)+'" height="10" rx="5" fill="'+col+'"/><rect x="'+(x+34+w*v-6)+'" y="'+(y-8)+'" width="12" height="20" rx="3" fill="#8f7aa8" stroke="#2b2238" stroke-width="2"/><rect x="'+(x+26)+'" y="'+(y-10)+'" width="'+(w+16)+'" height="24" fill="transparent" data-k="'+key+'" style="cursor:ew-resize"/>'}
@@ -161,24 +168,24 @@ w.addEventListener('pointerdown',function(e){
  if(xn){drag={xk:xn.getAttribute('data-x')};gest(drag,1);w.setPointerCapture(e.pointerId);render();e.preventDefault();return}
  if(kn){
    var k=kn.getAttribute('data-k'),o=ref(k);
-   drag={k:k,x:e.clientX,y:e.clientY,startVal:o[0][o[1]]};
+   drag={k:k,x:e.clientX,y:e.clientY,startVal:o[0][o[1]],sl:/inn|out|sam/.test(k)};
    gest(drag,1);w.setPointerCapture(e.pointerId);render();e.preventDefault();
  }
 });
 w.addEventListener('pointermove',function(e){
  if(!drag)return;
- var k=drag.k;
- if(k==='g,lvcRed'){
-   var o=ref(k);
+ if(drag.k==='g,lvcRed'){
+   var o=ref(drag.k);
    var delta = (drag.y - e.clientY) * 0.2;
-   var value = Math.max(-30, Math.min(0, drag.startVal + delta));
-   o[0][o[1]] = value;
-   flush();
-   render();
-   return;
+   o[0][o[1]] = Math.max(-30, Math.min(0, drag.startVal + delta));
+   flush(); render(); return;
  }
+ if(drag.xk){var r=w.querySelector('svg').getBoundingClientRect(),x=(e.clientX-r.left)*680/r.width,f=20*Math.pow(2,(x-PX)/(3*BW));
+  if(drag.xk=='lo'){f=Math.max(20,Math.min(500,f));S.g.lo=Math.log(f/20)/Math.log(25)}else{f=Math.max(2000,Math.min(20000,f));S.g.hi=Math.log10(f/2000)}flush();render();return}
+ var o=ref(drag.k),d=drag.sl?(e.clientX-drag.x)/110:(drag.y-e.clientY)/150;
+ o[0][o[1]]=Math.max(0,Math.min(1,drag.startVal+d));flush();render()
 });
-w.addEventListener('pointerup',function(){ if(drag){ gest(drag,0); drag=null; render(); }});
-w.addEventListener('pointercancel',function(){ if(drag){ gest(drag,0); drag=null; render(); }});
+function up(){if(drag){gest(drag,0);drag=null;render()}}
+w.addEventListener('pointerup',up);w.addEventListener('pointercancel',up);
 render();requestAnimationFrame(frame);
 </script></div></body></html>
