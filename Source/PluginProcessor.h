@@ -32,10 +32,10 @@ public:
     void getStateInformation (juce::MemoryBlock&) override;
     void setStateInformation (const void*, int) override;
 
-    void computeSpectrum (std::array<float, kBins>& outDb);   // llamar desde el hilo de UI
+    void computeSpectrum (std::array<float, kBins>& outDb);
 
     juce::AudioProcessorValueTreeState apvts;
-    std::array<std::atomic<float>, kBands> grDb;               // reduccion de ganancia por banda (dB)
+    std::array<std::atomic<float>, kBands> grDb;
 
 private:
     static juce::AudioProcessorValueTreeState::ParameterLayout createLayout();

@@ -7,6 +7,7 @@ namespace
     const char* kKeys[] = { "th","ra","ga","at","re","kn","sam","sat","lim","mu","x10" };
     const char* kNames[] = { "Threshold","Ratio","Gain","Attack","Release","Knee","Sat Amount","Sat","Limit","Mute","x10" };
     const char* kBandName[] = { "Low","Mid","High" };
+
     // valores por defecto = los del HTML
     struct BD { float th, ra, ga, at, re, kn, sam; bool sat, lim; };
     const BD kDef[3] = { {.825f,.339f,.5f,.388f,.259f,.219f,0.f,false,false},
@@ -22,11 +23,16 @@ namespace
         else                         out = T + over / R;
         return L - out;
     }
-    inline float softClip (float x)   // Soft clipper tipo "LVC": codo en -6 dB, techo 0 dBFS
+
+    inline float softClip (float x, float amount)
     {
-        const float t = 0.5f, a = std::abs (x);
-        if (a <= t) return x;
-        return std::copysign (t + (1.f - t) * std::tanh ((a - t) / (1.f - t)), x);
+        const float a = std::abs (x);
+        const float threshold = 0.35f + (1.f - amount) * 0.65f; // 0..1 => desde no-limit a max-reduction
+        if (a <= threshold)
+            return x;
+
+        const float s = (a - threshold) / (1.f - threshold);
+        return std::copysign (threshold + (1.f - threshold) * std::tanh (s), x);
     }
 }
 
@@ -36,6 +42,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout CM3CHAudioProcessor::createL
     AudioProcessorValueTreeState::ParameterLayout l;
     auto F = [&] (String id, String n, float d) { l.add (std::make_unique<AudioParameterFloat> (ParameterID { id, 1 }, n, NormalisableRange<float> (0.f, 1.f), d)); };
     auto B = [&] (String id, String n, bool d)  { l.add (std::make_unique<AudioParameterBool>  (ParameterID { id, 1 }, n, d)); };
+
     for (int b = 0; b < kBands; ++b)
     {
         const auto& d = kDef[b]; const float f[] = { d.th, d.ra, d.ga, d.at, d.re, d.kn, d.sam };
@@ -46,9 +53,19 @@ juce::AudioProcessorValueTreeState::ParameterLayout CM3CHAudioProcessor::createL
             else B (id, nm, k == SAT ? d.sat : k == LIM ? d.lim : false);
         }
     }
-    F ("lo", "Crossover Low", .564f);  F ("hi", "Crossover High", .352f);
-    F ("inn", "Input", .5f);         F ("out", "Output", .5f);
-    B ("byp", "Bypass", false);      B ("lvc", "LVC", true);   B ("fir", "FIR", false);
+
+    F ("lo", "Crossover Low", .564f);
+    F ("hi", "Crossover High", .352f);
+    F ("inn", "Input", .5f);
+    F ("out", "Output", .5f);
+    B ("byp", "Bypass", false);
+
+    // LVC pasa a ser un valor de reducción 0..1
+    F ("lvc", "LVC reduction", .35f);
+
+    // FIR se conserva por compatibilidad de estado, pero no se usa en la UI
+    B ("fir", "FIR", false);
+
     return l;
 }
 
@@ -65,7 +82,7 @@ CM3CHAudioProcessor::CM3CHAudioProcessor()
     pLo = apvts.getRawParameterValue ("lo");   pHi  = apvts.getRawParameterValue ("hi");
     pIn = apvts.getRawParameterValue ("inn");  pOut = apvts.getRawParameterValue ("out");
     pByp = apvts.getRawParameterValue ("byp"); pLvc = apvts.getRawParameterValue ("lvc");
-    pFir = apvts.getRawParameterValue ("fir");  // FIR no implementado: el parámetro se guarda pero el DSP es IIR (LR4)
+    pFir = apvts.getRawParameterValue ("fir");
 }
 
 bool CM3CHAudioProcessor::isBusesLayoutSupported (const BusesLayout& l) const
@@ -112,12 +129,15 @@ void CM3CHAudioProcessor::processBlock (juce::AudioBuffer<float>& buf, juce::Mid
         c.aC = 1.f - std::exp (-1.f / ((float) fs * attMs * 0.001f));
         c.rC = 1.f - std::exp (-1.f / ((float) fs * relMs * 0.001f));
         c.sat = P (SAT) > 0.5f;  c.mu = P (MU) > 0.5f;
-        c.drive = 1.f + P (SAM) * (P (X10) > 0.5f ? 30.f : 3.f);   // x10 = rango de saturación x10
+        c.drive = 1.f + P (SAM) * (P (X10) > 0.5f ? 30.f : 3.f);
         c.satN = 1.f / std::sqrt (c.drive);
     }
     const float inG  = std::pow (10.f, (-24.f + 48.f * pIn->load())  / 20.f);
     const float outG = std::pow (10.f, (-24.f + 48.f * pOut->load()) / 20.f);
-    const bool lvcOn = pLvc->load() > 0.5f;
+
+    const float lvcAmount = juce::jlimit (0.f, 1.f, pLvc->load());
+    const bool lvcOn = lvcAmount > 0.01f;
+
     const float bypT = pByp->load() > 0.5f ? 1.f : 0.f;
 
     float* ch[2] = { buf.getWritePointer (0), buf.getWritePointer (1) };
@@ -133,7 +153,7 @@ void CM3CHAudioProcessor::processBlock (juce::AudioBuffer<float>& buf, juce::Mid
             const float x = ch[c][s] * inG;
             xLo.processSample (c, x, low[c], rest[c]);
             xHi.processSample (c, rest[c], mid[c], high[c]);
-            low[c] = apLow.processSample (c, low[c]);      // alinea fase de la banda baja
+            low[c] = apLow.processSample (c, low[c]);
         }
         float* bands[kBands] = { low, mid, high };
         float sum[2] = { 0.f, 0.f };
@@ -159,7 +179,7 @@ void CM3CHAudioProcessor::processBlock (juce::AudioBuffer<float>& buf, juce::Mid
         for (int c = 0; c < 2; ++c)
         {
             float y = sum[c];
-            if (lvcOn) y = softClip (y);
+            if (lvcOn) y = softClip (y, lvcAmount);
             y *= outG;
             y = y * (1.f - bypMix) + dr[c][s] * bypMix;
             ch[c][s] = y; mono += 0.5f * y;
