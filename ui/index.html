@@ -21,7 +21,7 @@ var S={b:[
  {n:'LOW',c:P,bg:'#3d2380',x:120,th:0.825,ra:0.339,ga:0.5,at:0.388,re:0.259,kn:0.219,sat:0,sam:0,lim:0,mu:0,x10:0},
  {n:'MID',c:Bl,bg:'#0d4a85',x:340,th:0.835,ra:0.333,ga:0.5,at:0.393,re:0.265,kn:0.213,sat:0,sam:0,lim:0,mu:0,x10:0},
  {n:'HIGH',c:O,bg:'#8a4308',x:560,th:0.839,ra:0.333,ga:0.5,at:0.396,re:0.265,kn:0.2,sat:0,sam:0,lim:0,mu:0,x10:0}],
- g:{lo:.564,hi:.352,inn:.5,out:.5,byp:0,lvc:1,lvcRed:-0.5,fir:0},adv:1};
+ g:{lo:.564,hi:.352,inn:.5,out:.5,byp:0,lvc:1,lvcRed:0.98333,fir:0},adv:1};
 var JB=(window.__JUCE__&&window.__JUCE__.backend)||null,native=false,spec=[],grN=[0,0,0],sent={},lastH=0,lvcAct=0;
 var BK=['th','ra','ga','at','re','kn','sam','sat','lim','mu','x10'],GK=['lo','hi','inn','out','byp','lvc','lvcRed','fir'],PID=[];
 for(var bi_=0;bi_<3;bi_++)BK.forEach(function(k){PID.push('b'+bi_+'_'+k)});GK.forEach(function(k){PID.push(k)});
@@ -47,7 +47,7 @@ function fmt(key,v){var k=key.split(',')[1];
  if(k=='th')return (-60+60*v).toFixed(0)+' dB';if(k=='ra')return (1+19*v*v).toFixed(1)+':1';
  if(k=='ga')return (-12+24*v).toFixed(1)+' dB';if(k=='at')return (0.1*Math.pow(1000,v)).toFixed(1)+' ms';
  if(k=='re')return (5*Math.pow(200,v)).toFixed(0)+' ms';if(k=='kn')return (24*v).toFixed(0)+' dB';
- if(k=='sam')return (v*100).toFixed(0)+'%';if(k=='lvcRed')return v.toFixed(1)+' dB';
+ if(k=='sam')return (v*100).toFixed(0)+'%';if(k=='lvcRed')return (-30*(1-v)).toFixed(1)+' dB';
  return (-24+48*v).toFixed(1)+' dB'}
 function ref(key){var k=key.split(',');return k[0]=='g'?[S.g,k[1]]:[S.b[+k[0]],k[1]]}
 var GRMAX=18,grB=[0,0,0],grGeo=[];
@@ -66,26 +66,23 @@ function knob(cx,cy,r,col,key,label){var th=/,th$/.test(key),bi=+key.split(',')[
  +'<polygon points="'+tip[0].toFixed(1)+','+tip[1].toFixed(1)+' '+b1[0].toFixed(1)+','+b1[1].toFixed(1)+' '+b2[0].toFixed(1)+','+b2[1].toFixed(1)+'" fill="'+col+'" stroke="'+INK+'" stroke-width="1.5" stroke-linejoin="round"/>'
  +plaque(cx,cy+r+8,60,lab,'#7a6590','#f3eaff')
  +'<circle cx="'+cx+'" cy="'+cy+'" r="'+(r+6)+'" fill="transparent" data-k="'+key+'" style="cursor:ns-resize"/>'}
-function miniLvcKnob(cx,cy,r,col,key){
-    var o=ref(key),v=o[0][o[1]];
-    var setNorm = (v + 30) / 30;
-    var setA = -135 + 270 * setNorm;
-    var act = Math.max(0, Math.min(30, lvcAct));
-    var actNorm = Math.max(0, Math.min(1, act / 30));
-    var actA = -135 + 270 * actNorm;
-    var tip=pt(cx,cy,r+4,setA),b1=pt(cx,cy,r-6,setA-8),b2=pt(cx,cy,r-6,setA+8);
-    var lab=(drag&&drag.k==key)?fmt(key,v):v.toFixed(1)+' dB';
-    return '<path d="'+arc(cx,cy,r+5,-135,135)+'" stroke="#1a1a1f" stroke-width="2" fill="none" opacity="0.7"/>' +
-           '<path d="'+arc(cx,cy,r+5,-135,actA)+'" stroke="#ff8a1f" stroke-width="2.5" fill="none" opacity="'+(act>0.2?0.95:0.2)+'"/>' +
-           '<path d="'+arc(cx,cy,r-3,-135,135)+'" stroke="#171121" stroke-width="4" fill="none" stroke-linecap="round"/>' +
-           '<path d="'+arc(cx,cy,r-3,-135,setA)+'" stroke="'+col+'" stroke-width="4" fill="none" stroke-linecap="round"/>' +
-           '<circle cx="'+cx+'" cy="'+cy+'" r="'+r+'" fill="#2b2238" stroke="'+INK+'" stroke-width="2"/>' +
-           '<circle cx="'+cx+'" cy="'+cy+'" r="'+(r-2)+'" fill="none" stroke="#4a3d5c" stroke-width="2" stroke-dasharray="2 3"/>' +
-           '<circle cx="'+cx+'" cy="'+cy+'" r="'+(r-9)+'" fill="#3b2f4d" stroke="#2b2238" stroke-width="2"/>' +
-           '<polygon points="'+tip[0].toFixed(1)+','+tip[1].toFixed(1)+' '+b1[0].toFixed(1)+','+b1[1].toFixed(1)+' '+b2[0].toFixed(1)+','+b2[1].toFixed(1)+'" fill="'+col+'" stroke="'+INK+'" stroke-width="1.5" stroke-linejoin="round"/>' +
-           '<circle cx="'+cx+'" cy="'+cy+'" r="'+(r+6)+'" fill="transparent" data-k="'+key+'" style="cursor:ns-resize"/>' +
-           '<text x="'+(cx+25)+'" y="'+(cy+3)+'" text-anchor="start" font-size="8" font-weight="600" fill="#e9defc" font-family="'+FN+'">'+lab+'</text>';
-}
+var lvS=0,lvGeo=null;
+function lvcPos(n){return Math.sqrt(Math.max(0,Math.min(1,1-n)))}
+function lvcFromPos(p){return 1-p*p}
+function lvcSlider(x,y,w,col,key){
+ var o=ref(key),n=o[0][o[1]],p=lvcPos(n),db=-30*(1-n),on=S.g.lvc?1:0;lvGeo=[x,w];
+ var lab=(drag&&drag.k==key)?fmt(key,n):db.toFixed(1)+' dB',tx=x+w*p;
+ return '<g opacity="'+(on?1:.45)+'">'
+  +'<rect x="'+x+'" y="'+(y-4)+'" width="'+w+'" height="8" rx="4" fill="#171121" stroke="'+INK+'"/>'
+  +'<rect x="'+x+'" y="'+(y-4)+'" width="'+(w*p)+'" height="8" rx="4" fill="'+col+'"/>'
+  +'<rect x="'+(tx-5)+'" y="'+(y-8)+'" width="10" height="16" rx="3" fill="#8f7aa8" stroke="#2b2238" stroke-width="2"/>'
+  +'<rect x="'+x+'" y="'+(y+9)+'" width="'+w+'" height="6" rx="3" fill="#171121" stroke="'+INK+'"/>'
+  +'<rect id="lvg" x="'+x+'" y="'+(y+7)+'" width="0" height="10" rx="5" fill="#ff8a1f" opacity="0" pointer-events="none"/>'
+  +'<rect id="lvm" x="'+x+'" y="'+(y+9)+'" width="0" height="6" rx="3" fill="#ff8a1f" pointer-events="none"/>'
+  +'<text x="'+(x+w+10)+'" y="'+(y+3)+'" font-size="10" font-weight="600" fill="#f3eaff" font-family="'+FN+'" pointer-events="none">'+lab+'</text>'
+  +'<text id="lvt" x="'+(x+w+10)+'" y="'+(y+15)+'" font-size="9" font-weight="600" fill="#ff8a1f" font-family="'+FN+'" pointer-events="none">GR 0.0</text>'
+  +'<rect x="'+(x-8)+'" y="'+(y-12)+'" width="'+(w+16)+'" height="28" fill="transparent" data-k="'+key+'" style="cursor:ew-resize"/>'
+  +'</g>'}
 function slider(x,y,w,col,key,label){var o=ref(key),v=o[0][o[1]],lab=(drag&&drag.k==key)?fmt(key,v):label;
  return T(x,y+4,lab,11,'#f3eaff','start')+'<rect x="'+(x+34)+'" y="'+(y-3)+'" width="'+w+'" height="10" rx="5" fill="#171121" stroke="'+INK+'"/><rect x="'+(x+34)+'" y="'+(y-3)+'" width="'+(w*v)+'" height="10" rx="5" fill="'+col+'"/><rect x="'+(x+34+w*v-6)+'" y="'+(y-8)+'" width="12" height="20" rx="3" fill="#8f7aa8" stroke="#2b2238" stroke-width="2"/><rect x="'+(x+26)+'" y="'+(y-10)+'" width="'+(w+16)+'" height="24" fill="transparent" data-k="'+key+'" style="cursor:ew-resize"/>'}
 function tog(cx,y,w,txt,key,col){var o=ref(key),on=o[0][o[1]];return plaque(cx,y,w,txt,on?col:'#4a3d5c',on?INK:'#cbb8e6','data-t="'+key+'"')}
@@ -123,7 +120,7 @@ function render(){
   });
   s+=tog(240,674,88,'BYPASS','g,byp','#e5484d');
   s+=tog(340,674,70,'LVC','g,lvc','#34d399');
-  s+=miniLvcKnob(470,680,18,'#34d399','g,lvcRed');
+  s+=lvcSlider(392,678,84,'#34d399','g,lvcRed');
  }
  s+='</g></svg>';
  var w=document.getElementById('w');w.innerHTML=s;if(JB&&lastH!==H){lastH=H;JB.emitEvent('size',{h:H+4})}
@@ -159,6 +156,13 @@ function frame(ms){
   var GL=document.getElementById('grg'+j),TX=document.getElementById('grt'+j),on=g>.05,pd=on?arc(geo[0],geo[1],geo[2],135-270*Math.max(fr,.02),135):'',col='hsl('+(48-48*Math.min(1,g/12)).toFixed(0)+',100%,'+(62-8*fr).toFixed(0)+'%)';
   A.setAttribute('d',pd);A.setAttribute('stroke',col);GL.setAttribute('d',pd);GL.setAttribute('stroke',col);GL.setAttribute('opacity',on?(.25+.35*fr).toFixed(2):0);
   TX.textContent=(on?'\u2212':'')+g.toFixed(1);TX.setAttribute('fill',on?'#fff':'#3b2f4d')}
+
+ if(!native)lvcAct=(S.g.lvc&&!S.g.byp)?30*(1-S.g.lvcRed)*(.7+.3*Math.sin(t*3)):0;
+ lvS+=(lvcAct-lvS)*(lvcAct>lvS?.6:.12);
+ var LM=document.getElementById('lvm');
+ if(LM&&lvGeo){var LG=document.getElementById('lvg'),LT=document.getElementById('lvt'),act=lvS>.05,lf=Math.sqrt(Math.min(1,lvS/30)),lw=act?Math.max(4,lvGeo[1]*lf):0,lc='hsl('+(32-32*Math.min(1,lvS/12)).toFixed(0)+',100%,'+(58-6*lf).toFixed(0)+'%)';
+  LM.setAttribute('width',lw);LM.setAttribute('fill',lc);LG.setAttribute('width',lw);LG.setAttribute('fill',lc);LG.setAttribute('opacity',act?(.3+.4*lf).toFixed(2):0);
+  LT.textContent='GR '+(act?'\u2212':'')+lvS.toFixed(1);LT.setAttribute('fill',act?lc:'#6b5a82')}
  requestAnimationFrame(frame)}
 var w=document.getElementById('w');
 w.addEventListener('pointerdown',function(e){
@@ -175,10 +179,8 @@ w.addEventListener('pointerdown',function(e){
 w.addEventListener('pointermove',function(e){
  if(!drag)return;
  if(drag.k==='g,lvcRed'){
-   var o=ref(drag.k);
-   var delta = (drag.y - e.clientY) * 0.2;
-   o[0][o[1]] = Math.max(-30, Math.min(0, drag.startVal + delta));
-   flush(); render(); return;
+   var o=ref(drag.k),p=Math.max(0,Math.min(1,lvcPos(drag.startVal)+(e.clientX-drag.x)/90));
+   o[0][o[1]]=lvcFromPos(p);flush();render();return
  }
  if(drag.xk){var r=w.querySelector('svg').getBoundingClientRect(),x=(e.clientX-r.left)*680/r.width,f=20*Math.pow(2,(x-PX)/(3*BW));
   if(drag.xk=='lo'){f=Math.max(20,Math.min(500,f));S.g.lo=Math.log(f/20)/Math.log(25)}else{f=Math.max(2000,Math.min(20000,f));S.g.hi=Math.log10(f/2000)}flush();render();return}
