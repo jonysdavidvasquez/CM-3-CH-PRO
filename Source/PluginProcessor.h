@@ -37,6 +37,7 @@ public:
 
     juce::AudioProcessorValueTreeState apvts;
     std::array<std::atomic<float>, kBands> grDb;
+    // Actual measured LVC gain reduction in positive dB; the UI displays it with a minus sign.
     std::atomic<float> lvcReductionDb { 0.f };
 
 private:

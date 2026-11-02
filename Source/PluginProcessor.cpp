@@ -25,20 +25,16 @@ namespace
         return L - out;
     }
 
-    inline float dbToLinear (float db)
+    // Soft-knee limiter: signals below threshold pass unchanged; only peaks above it are curved.
+    inline float softLimitCurve (float x, float threshold)
     {
-        return std::pow (10.0f, db / 20.0f);
-    }
-
-    inline float softLimitCurve (float x, float reductionDb)
-    {
-        const float knee = juce::jlimit (0.1f, 1.0f, 0.35f + (-reductionDb / 30.f) * 0.6f);
         const float a = std::abs (x);
-        if (a <= knee)
+        if (a <= threshold)
             return x;
 
-        const float s = (a - knee) / (1.f - knee);
-        return std::copysign (knee + (1.f - knee) * std::tanh (s), x);
+        const float span = juce::jmax (1.0e-5f, 1.f - threshold);
+        const float limited = threshold + span * std::tanh ((a - threshold) / span);
+        return std::copysign (limited, x);
     }
 }
 
@@ -77,15 +73,12 @@ juce::AudioProcessorValueTreeState::ParameterLayout CM3CHAudioProcessor::createL
     F ("inn", "Input", .5f);
     F ("out", "Output", .5f);
     B ("byp", "Bypass", false);
-
     F ("lvc", "LVC", 1.f);
 
-    // real range in dB: -30 ... 0
+    // UI sends the real value in dB; PluginEditor converts it to JUCE's normalized parameter value.
     l.add (std::make_unique<AudioParameterFloat> (
-        ParameterID { "lvcRed", 1 },
-        "LVC Reduction",
-        NormalisableRange<float> (-30.f, 0.f),
-        -0.5f));
+        ParameterID { "lvcRed", 1 }, "LVC Threshold",
+        NormalisableRange<float> (-30.f, 0.f), -0.5f));
 
     B ("fir", "FIR", false);
     return l;
@@ -168,10 +161,9 @@ void CM3CHAudioProcessor::processBlock (juce::AudioBuffer<float>& buf, juce::Mid
     {
         auto P = [&] (int k) { return bp[b][k]->load(); };
         auto& c = bc[b];
-
-        c.T  = -60.f + 60.f * P (TH);
-        c.R  = P (LIM) > 0.5f ? 100.f : 1.f + 19.f * P (RA) * P (RA);
-        c.W  = 24.f * P (KN);
+        c.T = -60.f + 60.f * P (TH);
+        c.R = P (LIM) > 0.5f ? 100.f : 1.f + 19.f * P (RA) * P (RA);
+        c.W = 24.f * P (KN);
         c.mk = std::pow (10.f, (-12.f + 24.f * P (GA)) / 20.f);
 
         const float attMs = 0.1f * std::pow (1000.f, P (AT));
@@ -180,30 +172,28 @@ void CM3CHAudioProcessor::processBlock (juce::AudioBuffer<float>& buf, juce::Mid
         c.rC = 1.f - std::exp (-1.f / ((float) fs * relMs * 0.001f));
         c.sat = P (SAT) > 0.5f;
         c.mu = P (MU) > 0.5f;
-
         c.drive = 1.f + P (SAM) * (P (X10) > 0.5f ? 30.f : 3.f);
         c.satN = 1.f / std::sqrt (c.drive);
     }
 
     const float inG = std::pow (10.f, (-24.f + 48.f * pIn->load()) / 20.f);
     const float outG = std::pow (10.f, (-24.f + 48.f * pOut->load()) / 20.f);
-
     const float bypT = pByp->load() > 0.5f ? 1.f : 0.f;
     const bool lvcOn = pLvc->load() > 0.5f;
-    const float lvcDb = juce::jlimit (-30.f, 0.f, pLvcRed->load());
-    const float lvcGain = dbToLinear (lvcDb);
+
+    // The knob is a threshold in dBFS, not a gain applied to the whole signal.
+    const float lvcThresholdDb = juce::jlimit (-30.f, 0.f, pLvcRed->load());
+    const float lvcThreshold = std::pow (10.f, lvcThresholdDb / 20.f);
 
     float* ch[2] = { buf.getWritePointer (0), buf.getWritePointer (1) };
     const float* dr[2] = { dry.getReadPointer (0), dry.getReadPointer (1) };
     float grMax[kBands] = { 0, 0, 0 };
     int wp = fifoPos.load();
-
-    float currentLvcReduction = 0.f;
+    float blockLvcReduction = 0.f;
 
     for (int s = 0; s < n; ++s)
     {
         float low[2], rest[2], mid[2], high[2];
-
         for (int c = 0; c < 2; ++c)
         {
             const float x = ch[c][s] * inG;
@@ -214,22 +204,18 @@ void CM3CHAudioProcessor::processBlock (juce::AudioBuffer<float>& buf, juce::Mid
 
         float* bands[kBands] = { low, mid, high };
         float sum[2] = { 0.f, 0.f };
-
         for (int b = 0; b < kBands; ++b)
         {
             auto& k = bc[b];
             float* x = bands[b];
-
             const float lvl = juce::jmax (std::abs (x[0]), std::abs (x[1]));
             const float ldb = 20.f * std::log10 (juce::jmax (lvl, 1.0e-6f));
             const float gr = staticGR (ldb, k.T, k.R, k.W);
-
             env[b] += (gr - env[b]) * (gr > env[b] ? k.aC : k.rC);
             grMax[b] = juce::jmax (grMax[b], env[b]);
 
             const float g = std::exp (-env[b] * 0.11512925f) * k.mk;
             muteG[b] += ((k.mu ? 0.f : 1.f) - muteG[b]) * 0.002f;
-
             for (int c = 0; c < 2; ++c)
             {
                 float y = x[c] * g;
@@ -240,20 +226,17 @@ void CM3CHAudioProcessor::processBlock (juce::AudioBuffer<float>& buf, juce::Mid
 
         bypMix += (bypT - bypMix) * 0.002f;
         float mono = 0.f;
-
         for (int c = 0; c < 2; ++c)
         {
             float y = sum[c];
-
-            if (lvcOn)
+            if (lvcOn && bypMix < 0.999f)
             {
-                const float pre = std::abs (y);
-                y *= lvcGain;
-                y = softLimitCurve (y, lvcDb);
-
-                const float post = std::abs (y);
-                const float ratio = std::max (1.0e-6f, post / std::max (pre, 1.0e-6f));
-                currentLvcReduction = std::max (0.f, 20.f * std::log10 (1.f / ratio));
+                const float inputPeak = std::abs (y);
+                y = softLimitCurve (y, lvcThreshold);
+                const float outputPeak = std::abs (y);
+                if (inputPeak > 1.0e-8f && outputPeak > 1.0e-8f)
+                    blockLvcReduction = juce::jmax (blockLvcReduction,
+                        juce::jmax (0.f, 20.f * std::log10 (inputPeak / outputPeak)));
             }
 
             y *= outG;
@@ -261,14 +244,14 @@ void CM3CHAudioProcessor::processBlock (juce::AudioBuffer<float>& buf, juce::Mid
             ch[c][s] = y;
             mono += 0.5f * y;
         }
-
         fifo[(size_t) (wp++ & (kFFTSize * 2 - 1))] = mono;
     }
 
     fifoPos.store (wp);
-
-    const float smoothed = lvcReductionDb.load();
-    lvcReductionDb.store (smoothed + (currentLvcReduction - smoothed) * 0.08f);
+    const float previousGR = lvcReductionDb.load();
+    const float targetGR = (lvcOn && bypT < 0.5f) ? blockLvcReduction : 0.f;
+    const float smoothing = targetGR > previousGR ? 0.45f : 0.12f;
+    lvcReductionDb.store (previousGR + smoothing * (targetGR - previousGR));
 
     for (int b = 0; b < kBands; ++b)
         grDb[(size_t) b].store (bypT > 0.5f ? 0.f : grMax[b]);
@@ -277,25 +260,20 @@ void CM3CHAudioProcessor::processBlock (juce::AudioBuffer<float>& buf, juce::Mid
 void CM3CHAudioProcessor::computeSpectrum (std::array<float, kBins>& out)
 {
     const int wp = fifoPos.load();
-
     for (int i = 0; i < kFFTSize; ++i)
         fftBuf[(size_t) i] = fifo[(size_t) ((wp - kFFTSize + i) & (kFFTSize * 2 - 1))];
-
     std::fill (fftBuf.begin() + kFFTSize, fftBuf.end(), 0.f);
     window.multiplyWithWindowingTable (fftBuf.data(), (size_t) kFFTSize);
     fft.performFrequencyOnlyForwardTransform (fftBuf.data());
 
     const float binHz = (float) fs / (float) kFFTSize;
     const float norm = 4.f / (float) kFFTSize;
-
     for (int i = 0; i < kBins; ++i)
     {
         const float f = 20.f * std::pow (2.f, (float) i / 3.f);
         const int kl = (int) std::ceil (f / 1.1225f / binHz);
         const int kh = (int) std::floor (f * 1.1225f / binHz);
-
         float e = 0.f;
-
         if (kh < kl)
         {
             const float m = fftBuf[(size_t) juce::roundToInt (f / binHz)] * norm;
@@ -309,8 +287,8 @@ void CM3CHAudioProcessor::computeSpectrum (std::array<float, kBins>& out)
                 e += m * m;
             }
         }
-
-        out[(size_t) i] = juce::jlimit (-90.f, 0.f, 10.f * std::log10 (juce::jmax (e, 1.0e-10f)));
+        out[(size_t) i] = juce::jlimit (-90.f, 0.f,
+            10.f * std::log10 (juce::jmax (e, 1.0e-10f)));
     }
 }
 
