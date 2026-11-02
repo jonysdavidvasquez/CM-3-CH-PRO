@@ -21,4 +21,6 @@ Requiere WebView2 Runtime (ya viene en Windows 11 y en Windows 10 actualizado).
 | Balances MUTELOW/MIDS/HI, BYPASS | `mu`, `byp` (con rampa anti-click) |
 | Input / Output | `inn`, `out` (±24 dB) |
 
-Limitaciones: `FIR` se guarda pero el DSP es IIR; Blood Overdrive y los compresores de FL son aproximaciones, no clones exactos.
+Modo FIR: crossover de fase lineal (FIR Kaiser, ~21 ms de latencia que el plugin reporta al host). Modo IIR: Linkwitz-Riley 4.º orden, latencia cero. El cambio entre modos se hace con un fundido de 5 ms.
+
+Limitaciones: Blood Overdrive y los compresores de FL son aproximaciones, no clones exactos.
