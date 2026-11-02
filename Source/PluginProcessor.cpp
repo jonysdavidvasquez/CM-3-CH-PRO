@@ -8,7 +8,6 @@ namespace
     const char* kNames[] = { "Threshold","Ratio","Gain","Attack","Release","Knee","Sat Amount","Sat","Limit","Mute","x10" };
     const char* kBandName[] = { "Low","Mid","High" };
 
-    // valores por defecto = los del HTML
     struct BD { float th, ra, ga, at, re, kn, sam; bool sat, lim; };
     const BD kDef[3] = { {.825f,.339f,.5f,.388f,.259f,.219f,0.f,false,false},
                          {.835f,.333f,.5f,.393f,.265f,.213f,0.f,false,false},
@@ -61,9 +60,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout CM3CHAudioProcessor::createL
     F ("out", "Output", .5f);
     B ("byp", "Bypass", false);
 
-    // LVC sigue siendo un botón on/off
     F ("lvc", "LVC", 1.f);
-    // y la reducción se controla con un slider
     F ("lvcRed", "LVC Reduction", .35f);
 
     B ("fir", "FIR", false);
