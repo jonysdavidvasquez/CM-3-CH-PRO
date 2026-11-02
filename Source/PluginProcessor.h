@@ -5,13 +5,14 @@
 #include <atomic>
 #include <vector>
 
-class CM3CHAudioProcessor : public juce::AudioProcessor
+class CM3CHAudioProcessor : public juce::AudioProcessor, private juce::Timer
 {
 public:
     static constexpr int kBands = 3, kBins = 31, kFFTOrder = 13, kFFTSize = 1 << kFFTOrder;
     enum { TH, RA, GA, AT, RE, KN, SAM, SAT, LIM, MU, X10, kBandParams };
 
     CM3CHAudioProcessor();
+    ~CM3CHAudioProcessor() override { stopTimer(); }
     void prepareToPlay (double sr, int block) override;
     void releaseResources() override {}
     bool isBusesLayoutSupported (const BusesLayout&) const override;
@@ -38,6 +39,31 @@ public:
 
 private:
     static juce::AudioProcessorValueTreeState::ParameterLayout createLayout();
+
+    // ---- modo FIR (fase lineal) ----
+    void timerCallback() override;                 // hilo de mensajes: recarga IRs y reporta latencia
+    void updateIRs (bool force);
+    juce::AudioBuffer<float> makeLowpassIR (double fc) const;
+
+    struct Delay
+    {
+        std::vector<float> b; int mask = 0, pos = 0;
+        void prepare (int maxD) { int sz = 1; while (sz < maxD + 2) sz <<= 1; b.assign ((size_t) sz, 0.f); mask = sz - 1; pos = 0; }
+        float process (float x, int d)
+        {
+            b[(size_t) (pos & mask)] = x;
+            const float y = b[(size_t) ((pos - d) & mask)];
+            ++pos; return y;
+        }
+    };
+    juce::dsp::Convolution convLo, convHi;
+    juce::AudioBuffer<float> bufLo, bufHi;
+    Delay xDelay[2], dryDelay[2];
+    int firM = 1024, firLat = 1024, maxBlock = 512;
+    bool useFir = false;
+    float modeFade = 1.f;
+    double lastLo = -1.0, lastHi = -1.0;
+    std::atomic<bool> prepared { false };
 
     std::atomic<float>* bp[kBands][kBandParams] {};
     std::atomic<float> *pLo {}, *pHi {}, *pIn {}, *pOut {}, *pByp {}, *pLvc {}, *pFir {};
