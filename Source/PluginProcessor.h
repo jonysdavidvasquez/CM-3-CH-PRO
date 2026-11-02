@@ -37,6 +37,7 @@ public:
 
     juce::AudioProcessorValueTreeState apvts;
     std::array<std::atomic<float>, kBands> grDb;
+    std::atomic<float> lvcReductionDb { 0.f };
 
 private:
     static juce::AudioProcessorValueTreeState::ParameterLayout createLayout();

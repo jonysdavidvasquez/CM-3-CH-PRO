@@ -8,6 +8,7 @@ public:
     explicit CM3CHEditor (CM3CHAudioProcessor&);
     ~CM3CHEditor() override;
     void resized() override;
+
 private:
     void timerCallback() override;
     std::optional<juce::WebBrowserComponent::Resource> getResource (const juce::String& url);

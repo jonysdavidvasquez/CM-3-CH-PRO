@@ -29,6 +29,17 @@ namespace
     {
         return std::pow (10.0f, db / 20.0f);
     }
+
+    inline float softLimitCurve (float x, float reductionDb)
+    {
+        const float knee = juce::jlimit (0.1f, 1.0f, 0.35f + (-reductionDb / 30.f) * 0.6f);
+        const float a = std::abs (x);
+        if (a <= knee)
+            return x;
+
+        const float s = (a - knee) / (1.f - knee);
+        return std::copysign (knee + (1.f - knee) * std::tanh (s), x);
+    }
 }
 
 juce::AudioProcessorValueTreeState::ParameterLayout CM3CHAudioProcessor::createLayout()
@@ -54,7 +65,6 @@ juce::AudioProcessorValueTreeState::ParameterLayout CM3CHAudioProcessor::createL
         {
             String id = "b" + String (b) + "_" + kKeys[k];
             String nm = String (kBandName[b]) + " " + kNames[k];
-
             if (k <= SAM)
                 F (id, nm, f[k]);
             else
@@ -70,7 +80,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout CM3CHAudioProcessor::createL
 
     F ("lvc", "LVC", 1.f);
 
-    // rango real en dB: 0 dB a -30 dB
+    // real range in dB: -30 ... 0
     l.add (std::make_unique<AudioParameterFloat> (
         ParameterID { "lvcRed", 1 },
         "LVC Reduction",
@@ -93,10 +103,8 @@ CM3CHAudioProcessor::CM3CHAudioProcessor()
         for (int k = 0; k < kBandParams; ++k)
             bp[b][k] = apvts.getRawParameterValue ("b" + juce::String (b) + "_" + kKeys[k]);
 
-    pLo = apvts.getRawParameterValue ("lo");
-    pHi = apvts.getRawParameterValue ("hi");
-    pIn = apvts.getRawParameterValue ("inn");
-    pOut = apvts.getRawParameterValue ("out");
+    pLo = apvts.getRawParameterValue ("lo");   pHi  = apvts.getRawParameterValue ("hi");
+    pIn = apvts.getRawParameterValue ("inn");  pOut = apvts.getRawParameterValue ("out");
     pByp = apvts.getRawParameterValue ("byp");
     pLvc = apvts.getRawParameterValue ("lvc");
     pLvcRed = apvts.getRawParameterValue ("lvcRed");
@@ -131,6 +139,7 @@ void CM3CHAudioProcessor::prepareToPlay (double sr, int block)
     }
 
     bypMix = pByp->load() > 0.5f ? 1.f : 0.f;
+    lvcReductionDb.store (0.f);
 }
 
 void CM3CHAudioProcessor::processBlock (juce::AudioBuffer<float>& buf, juce::MidiBuffer&)
@@ -189,6 +198,8 @@ void CM3CHAudioProcessor::processBlock (juce::AudioBuffer<float>& buf, juce::Mid
     float grMax[kBands] = { 0, 0, 0 };
     int wp = fifoPos.load();
 
+    float currentLvcReduction = 0.f;
+
     for (int s = 0; s < n; ++s)
     {
         float low[2], rest[2], mid[2], high[2];
@@ -235,7 +246,15 @@ void CM3CHAudioProcessor::processBlock (juce::AudioBuffer<float>& buf, juce::Mid
             float y = sum[c];
 
             if (lvcOn)
+            {
+                const float pre = std::abs (y);
                 y *= lvcGain;
+                y = softLimitCurve (y, lvcDb);
+
+                const float post = std::abs (y);
+                const float ratio = std::max (1.0e-6f, post / std::max (pre, 1.0e-6f));
+                currentLvcReduction = std::max (0.f, 20.f * std::log10 (1.f / ratio));
+            }
 
             y *= outG;
             y = y * (1.f - bypMix) + dr[c][s] * bypMix;
@@ -247,6 +266,9 @@ void CM3CHAudioProcessor::processBlock (juce::AudioBuffer<float>& buf, juce::Mid
     }
 
     fifoPos.store (wp);
+
+    const float smoothed = lvcReductionDb.load();
+    lvcReductionDb.store (smoothed + (currentLvcReduction - smoothed) * 0.08f);
 
     for (int b = 0; b < kBands; ++b)
         grDb[(size_t) b].store (bypT > 0.5f ? 0.f : grMax[b]);
