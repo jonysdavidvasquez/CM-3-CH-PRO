@@ -27,7 +27,7 @@ namespace
     inline float softClip (float x, float amount)
     {
         const float a = std::abs (x);
-        const float threshold = 0.35f + (1.f - amount) * 0.65f; // 0..1 => desde no-limit a max-reduction
+        const float threshold = 0.35f + (1.f - amount) * 0.65f;
         if (a <= threshold)
             return x;
 
@@ -45,7 +45,8 @@ juce::AudioProcessorValueTreeState::ParameterLayout CM3CHAudioProcessor::createL
 
     for (int b = 0; b < kBands; ++b)
     {
-        const auto& d = kDef[b]; const float f[] = { d.th, d.ra, d.ga, d.at, d.re, d.kn, d.sam };
+        const auto& d = kDef[b];
+        const float f[] = { d.th, d.ra, d.ga, d.at, d.re, d.kn, d.sam };
         for (int k = 0; k < kBandParams; ++k)
         {
             String id = "b" + String (b) + "_" + kKeys[k], nm = String (kBandName[b]) + " " + kNames[k];
@@ -60,10 +61,11 @@ juce::AudioProcessorValueTreeState::ParameterLayout CM3CHAudioProcessor::createL
     F ("out", "Output", .5f);
     B ("byp", "Bypass", false);
 
-    // LVC pasa a ser un valor de reducción 0..1
-    F ("lvc", "LVC reduction", .35f);
+    // LVC sigue siendo un botón on/off
+    F ("lvc", "LVC", 1.f);
+    // y la reducción se controla con un slider
+    F ("lvcRed", "LVC Reduction", .35f);
 
-    // FIR se conserva por compatibilidad de estado, pero no se usa en la UI
     B ("fir", "FIR", false);
 
     return l;
@@ -81,7 +83,9 @@ CM3CHAudioProcessor::CM3CHAudioProcessor()
             bp[b][k] = apvts.getRawParameterValue ("b" + juce::String (b) + "_" + kKeys[k]);
     pLo = apvts.getRawParameterValue ("lo");   pHi  = apvts.getRawParameterValue ("hi");
     pIn = apvts.getRawParameterValue ("inn");  pOut = apvts.getRawParameterValue ("out");
-    pByp = apvts.getRawParameterValue ("byp"); pLvc = apvts.getRawParameterValue ("lvc");
+    pByp = apvts.getRawParameterValue ("byp");
+    pLvc = apvts.getRawParameterValue ("lvc");
+    pLvcRed = apvts.getRawParameterValue ("lvcRed");
     pFir = apvts.getRawParameterValue ("fir");
 }
 
@@ -135,10 +139,9 @@ void CM3CHAudioProcessor::processBlock (juce::AudioBuffer<float>& buf, juce::Mid
     const float inG  = std::pow (10.f, (-24.f + 48.f * pIn->load())  / 20.f);
     const float outG = std::pow (10.f, (-24.f + 48.f * pOut->load()) / 20.f);
 
-    const float lvcAmount = juce::jlimit (0.f, 1.f, pLvc->load());
-    const bool lvcOn = lvcAmount > 0.01f;
-
     const float bypT = pByp->load() > 0.5f ? 1.f : 0.f;
+    const bool lvcOn = pLvc->load() > 0.5f;
+    const float lvcAmount = juce::jlimit (0.f, 1.f, pLvcRed->load());
 
     float* ch[2] = { buf.getWritePointer (0), buf.getWritePointer (1) };
     const float* dr[2] = { dry.getReadPointer (0), dry.getReadPointer (1) };

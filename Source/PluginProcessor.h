@@ -41,7 +41,7 @@ private:
     static juce::AudioProcessorValueTreeState::ParameterLayout createLayout();
 
     std::atomic<float>* bp[kBands][kBandParams] {};
-    std::atomic<float> *pLo {}, *pHi {}, *pIn {}, *pOut {}, *pByp {}, *pLvc {}, *pFir {};
+    std::atomic<float> *pLo {}, *pHi {}, *pIn {}, *pOut {}, *pByp {}, *pLvc {}, *pLvcRed {}, *pFir {};
 
     juce::dsp::LinkwitzRileyFilter<float> xLo, xHi, apLow;
     juce::AudioBuffer<float> dry;
