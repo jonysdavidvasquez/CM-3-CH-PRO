@@ -21,9 +21,9 @@ var S={b:[
  {n:'LOW',c:P,bg:'#3d2380',x:120,th:0.825,ra:0.339,ga:0.5,at:0.388,re:0.259,kn:0.219,sat:0,sam:0,lim:0,mu:0,x10:0},
  {n:'MID',c:Bl,bg:'#0d4a85',x:340,th:0.835,ra:0.333,ga:0.5,at:0.393,re:0.265,kn:0.213,sat:0,sam:0,lim:0,mu:0,x10:0},
  {n:'HIGH',c:O,bg:'#8a4308',x:560,th:0.839,ra:0.333,ga:0.5,at:0.396,re:0.265,kn:0.2,sat:0,sam:0,lim:0,mu:0,x10:0}],
- g:{lo:.564,hi:.352,inn:.5,out:.5,byp:0,lvc:.35,fir:0},adv:1};
+ g:{lo:.564,hi:.352,inn:.5,out:.5,byp:0,lvc:1,lvcRed:.35,fir:0},adv:1};
 var JB=(window.__JUCE__&&window.__JUCE__.backend)||null,native=false,spec=[],grN=[0,0,0],sent={},lastH=0;
-var BK=['th','ra','ga','at','re','kn','sam','sat','lim','mu','x10'],GK=['lo','hi','inn','out','byp','lvc','fir'],PID=[];
+var BK=['th','ra','ga','at','re','kn','sam','sat','lim','mu','x10'],GK=['lo','hi','inn','out','byp','lvc','lvcRed','fir'],PID=[];
 for(var bi_=0;bi_<3;bi_++)BK.forEach(function(k){PID.push('b'+bi_+'_'+k)});GK.forEach(function(k){PID.push(k)});
 function pget(id){var m=id.match(/^b(\d)_(\w+)$/);return m?S.b[+m[1]][m[2]]:S.g[id]}
 function pset(id,v){var m=id.match(/^b(\d)_(\w+)$/);if(m)S.b[+m[1]][m[2]]=v;else S.g[id]=v}
@@ -45,7 +45,7 @@ function fmt(key,v){var k=key.split(',')[1];
  if(k=='th')return (-60+60*v).toFixed(0)+' dB';if(k=='ra')return (1+19*v*v).toFixed(1)+':1';
  if(k=='ga')return (-12+24*v).toFixed(1)+' dB';if(k=='at')return (0.1*Math.pow(1000,v)).toFixed(1)+' ms';
  if(k=='re')return (5*Math.pow(200,v)).toFixed(0)+' ms';if(k=='kn')return (24*v).toFixed(0)+' dB';
- if(k=='sam')return (v*100).toFixed(0)+'%'; if(k=='lvc') return (v*24).toFixed(1)+' dB';
+ if(k=='sam')return (v*100).toFixed(0)+'%';if(k=='lvcRed')return (-24+48*v).toFixed(1)+' dB';
  return (-24+48*v).toFixed(1)+' dB'}
 function ref(key){var k=key.split(',');return k[0]=='g'?[S.g,k[1]]:[S.b[+k[0]],k[1]]}
 var GRMAX=18,grB=[0,0,0],grGeo=[];
@@ -67,7 +67,7 @@ function knob(cx,cy,r,col,key,label){var th=/,th$/.test(key),bi=+key.split(',')[
 function slider(x,y,w,col,key,label){var o=ref(key),v=o[0][o[1]],lab=(drag&&drag.k==key)?fmt(key,v):label;
  return T(x,y+4,lab,11,'#f3eaff','start')+'<rect x="'+(x+34)+'" y="'+(y-3)+'" width="'+w+'" height="10" rx="5" fill="#171121" stroke="'+INK+'"/><rect x="'+(x+34)+'" y="'+(y-3)+'" width="'+(w*v)+'" height="10" rx="5" fill="'+col+'"/><rect x="'+(x+34+w*v-6)+'" y="'+(y-8)+'" width="12" height="20" rx="3" fill="#8f7aa8" stroke="#2b2238" stroke-width="2"/><rect x="'+(x+26)+'" y="'+(y-10)+'" width="'+(w+16)+'" height="24" fill="transparent" data-k="'+key+'" style="cursor:ew-resize"/>'}
 function miniSlider(x,y,w,col,key,label){
-    var o=ref(key), v=o[0][o[1]], lab=(drag&&drag.k==key)?fmt(key,v):(v*24).toFixed(1)+' dB';
+    var o=ref(key), v=o[0][o[1]], lab=(drag&&drag.k==key)?fmt(key,v):((-24+48*v).toFixed(1)+' dB');
     return T(x,y-8,label,9,'#f3eaff','start')
       +'<rect x="'+(x+52)+'" y="'+(y-2)+'" width="'+w+'" height="8" rx="4" fill="#171121" stroke="'+INK+'"/>'
       +'<rect x="'+(x+52)+'" y="'+(y-2)+'" width="'+(w*v)+'" height="8" rx="4" fill="'+col+'"/>'
@@ -109,7 +109,8 @@ function render(){
    s+=slider(b.x-90,630,124,b.c,i+',sam','SAT');
   });
   s+=tog(240,674,88,'BYPASS','g,byp','#e5484d');
-  s+=miniSlider(350,674,118,'#34d399','g,lvc','LVC');
+  s+=tog(340,674,70,'LVC','g,lvc','#34d399');
+  s+=miniSlider(420,674,110,'#34d399','g,lvcRed','RED');
  }
  s+='</g></svg>';
  var w=document.getElementById('w');w.innerHTML=s;if(JB&&lastH!==H){lastH=H;JB.emitEvent('size',{h:H+4})}
@@ -152,7 +153,7 @@ w.addEventListener('pointerdown',function(e){
  if(ad){S.adv=S.adv?0:1;render();return}
  if(tg){var o=ref(tg.getAttribute('data-t'));o[0][o[1]]=o[0][o[1]]?0:1;flush();render();return}
  if(xn){drag={xk:xn.getAttribute('data-x')};gest(drag,1);w.setPointerCapture(e.pointerId);render();e.preventDefault();return}
- if(kn){var k=kn.getAttribute('data-k'),o=ref(k);drag={k:k,x:e.clientX,y:e.clientY,v:o[0][o[1]],sl:/inn|out|sam|lvc/.test(k)};gest(drag,1);w.setPointerCapture(e.pointerId);render();e.preventDefault()}});
+ if(kn){var k=kn.getAttribute('data-k'),o=ref(k);drag={k:k,x:e.clientX,y:e.clientY,v:o[0][o[1]],sl:/inn|out|sam|lvcRed/.test(k)};gest(drag,1);w.setPointerCapture(e.pointerId);render();e.preventDefault()}});
 w.addEventListener('pointermove',function(e){if(!drag)return;
  if(drag.xk){var r=w.querySelector('svg').getBoundingClientRect(),x=(e.clientX-r.left)*680/r.width,f=20*Math.pow(2,(x-PX)/(3*BW));
   if(drag.xk=='lo'){f=Math.max(20,Math.min(500,f));S.g.lo=Math.log(f/20)/Math.log(25)}else{f=Math.max(2000,Math.min(20000,f));S.g.hi=Math.log10(f/2000)}flush();
