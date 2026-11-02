@@ -23,17 +23,9 @@ namespace
         return L - out;
     }
 
-    inline float softClip (float x, float reductionDb)
+    inline float dBToLinear (float dB)
     {
-        const float reduction = juce::jlimit (0.f, 1.f, 1.f - std::pow (10.f, reductionDb / 20.f));
-        const float a = std::abs (x);
-        const float t = 0.35f + reduction * 0.65f;
-
-        if (a <= t)
-            return x;
-
-        const float s = (a - t) / (1.f - t);
-        return std::copysign (t + (1.f - t) * std::tanh (s), x);
+        return std::pow (10.f, dB / 20.f);
     }
 }
 
@@ -63,10 +55,15 @@ juce::AudioProcessorValueTreeState::ParameterLayout CM3CHAudioProcessor::createL
     B ("byp", "Bypass", false);
 
     F ("lvc", "LVC", 1.f);
-    F ("lvcRed", "LVC Reduction", .35f); // 0.35 => -10.5 dB
+
+    // parámetro real en dB: de 0 dB a -30 dB
+    l.add (std::make_unique<AudioParameterFloat> (
+        ParameterID { "lvcRed", 1 },
+        "LVC Reduction",
+        NormalisableRange<float> (-30.f, 0.f),
+        -0.5f));
 
     B ("fir", "FIR", false);
-
     return l;
 }
 
@@ -140,8 +137,8 @@ void CM3CHAudioProcessor::processBlock (juce::AudioBuffer<float>& buf, juce::Mid
 
     const float bypT = pByp->load() > 0.5f ? 1.f : 0.f;
     const bool lvcOn = pLvc->load() > 0.5f;
-    const float lvcNorm = juce::jlimit (0.f, 1.f, pLvcRed->load());
-    const float lvcReductionDb = -30.f * lvcNorm;
+    const float lvcReductionDb = juce::jlimit (-30.f, 0.f, pLvcRed->load());
+    const float lvcGain = dBToLinear (lvcReductionDb);
 
     float* ch[2] = { buf.getWritePointer (0), buf.getWritePointer (1) };
     const float* dr[2] = { dry.getReadPointer (0), dry.getReadPointer (1) };
@@ -183,7 +180,7 @@ void CM3CHAudioProcessor::processBlock (juce::AudioBuffer<float>& buf, juce::Mid
         {
             float y = sum[c];
             if (lvcOn)
-                y = softClip (y, lvcReductionDb);
+                y *= lvcGain; // reducción real en dB
             y *= outG;
             y = y * (1.f - bypMix) + dr[c][s] * bypMix;
             ch[c][s] = y; mono += 0.5f * y;
