@@ -13,6 +13,7 @@ public:
 
     CM3CHAudioProcessor();
     ~CM3CHAudioProcessor() override = default;
+
     void prepareToPlay (double sr, int block) override;
     void releaseResources() override {}
     bool isBusesLayoutSupported (const BusesLayout&) const override;
