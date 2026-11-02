@@ -45,7 +45,7 @@ function fmt(key,v){var k=key.split(',')[1];
  if(k=='th')return (-60+60*v).toFixed(0)+' dB';if(k=='ra')return (1+19*v*v).toFixed(1)+':1';
  if(k=='ga')return (-12+24*v).toFixed(1)+' dB';if(k=='at')return (0.1*Math.pow(1000,v)).toFixed(1)+' ms';
  if(k=='re')return (5*Math.pow(200,v)).toFixed(0)+' ms';if(k=='kn')return (24*v).toFixed(0)+' dB';
- if(k=='sam')return (v*100).toFixed(0)+'%';if(k=='lvcRed')return (-24+48*v).toFixed(1)+' dB';
+ if(k=='sam')return (v*100).toFixed(0)+'%';if(k=='lvcRed')return (-30+30*v).toFixed(1)+' dB';
  return (-24+48*v).toFixed(1)+' dB'}
 function ref(key){var k=key.split(',');return k[0]=='g'?[S.g,k[1]]:[S.b[+k[0]],k[1]]}
 var GRMAX=18,grB=[0,0,0],grGeo=[];
@@ -67,7 +67,7 @@ function knob(cx,cy,r,col,key,label){var th=/,th$/.test(key),bi=+key.split(',')[
 function miniLvcKnob(cx,cy,r,col,key){
     var o=ref(key),v=o[0][o[1]],a=-135+270*v;
     var tip=pt(cx,cy,r+4,a),b1=pt(cx,cy,r-6,a-8),b2=pt(cx,cy,r-6,a+8);
-    var lab=(drag&&drag.k==key)?fmt(key,v):((-24+48*v).toFixed(1)+' dB');
+    var lab=(drag&&drag.k==key)?fmt(key,v):((-30+30*v).toFixed(1)+' dB');
     return '<circle cx="'+cx+'" cy="'+cy+'" r="'+r+'" fill="#2b2238" stroke="'+INK+'" stroke-width="2"/>'
         +'<circle cx="'+cx+'" cy="'+cy+'" r="'+(r-2)+'" fill="none" stroke="#4a3d5c" stroke-width="2" stroke-dasharray="2 3"/>'
         +'<path d="'+arc(cx,cy,r-3,-135,135)+'" stroke="#171121" stroke-width="4" fill="none" stroke-linecap="round"/>'
