@@ -64,17 +64,21 @@ function knob(cx,cy,r,col,key,label){var th=/,th$/.test(key),bi=+key.split(',')[
  +'<polygon points="'+tip[0].toFixed(1)+','+tip[1].toFixed(1)+' '+b1[0].toFixed(1)+','+b1[1].toFixed(1)+' '+b2[0].toFixed(1)+','+b2[1].toFixed(1)+'" fill="'+col+'" stroke="'+INK+'" stroke-width="1.5" stroke-linejoin="round"/>'
  +plaque(cx,cy+r+8,60,lab,'#7a6590','#f3eaff')
  +'<circle cx="'+cx+'" cy="'+cy+'" r="'+(r+6)+'" fill="transparent" data-k="'+key+'" style="cursor:ns-resize"/>'}
+function miniLvcKnob(cx,cy,r,col,key){
+    var o=ref(key),v=o[0][o[1]],a=-135+270*v;
+    var tip=pt(cx,cy,r+4,a),b1=pt(cx,cy,r-6,a-8),b2=pt(cx,cy,r-6,a+8);
+    var lab=(drag&&drag.k==key)?fmt(key,v):((-24+48*v).toFixed(1)+' dB');
+    return '<circle cx="'+cx+'" cy="'+cy+'" r="'+r+'" fill="#2b2238" stroke="'+INK+'" stroke-width="2"/>'
+        +'<circle cx="'+cx+'" cy="'+cy+'" r="'+(r-2)+'" fill="none" stroke="#4a3d5c" stroke-width="2" stroke-dasharray="2 3"/>'
+        +'<path d="'+arc(cx,cy,r-3,-135,135)+'" stroke="#171121" stroke-width="4" fill="none" stroke-linecap="round"/>'
+        +'<path d="'+arc(cx,cy,r-3,-135,a)+'" stroke="'+col+'" stroke-width="4" fill="none" stroke-linecap="round"/>'
+        +'<circle cx="'+cx+'" cy="'+cy+'" r="'+(r-9)+'" fill="#3b2f4d" stroke="#2b2238" stroke-width="2"/>'
+        +'<polygon points="'+tip[0].toFixed(1)+','+tip[1].toFixed(1)+' '+b1[0].toFixed(1)+','+b1[1].toFixed(1)+' '+b2[0].toFixed(1)+','+b2[1].toFixed(1)+'" fill="'+col+'" stroke="'+INK+'" stroke-width="1.5" stroke-linejoin="round"/>'
+        +'<circle cx="'+cx+'" cy="'+cy+'" r="'+(r+6)+'" fill="transparent" data-k="'+key+'" style="cursor:ns-resize"/>'
+        +'<text x="'+(cx+25)+'" y="'+(cy+3)+'" text-anchor="start" font-size="8" font-weight="600" fill="#e9defc" font-family="'+FN+'">'+lab+'</text>';
+}
 function slider(x,y,w,col,key,label){var o=ref(key),v=o[0][o[1]],lab=(drag&&drag.k==key)?fmt(key,v):label;
  return T(x,y+4,lab,11,'#f3eaff','start')+'<rect x="'+(x+34)+'" y="'+(y-3)+'" width="'+w+'" height="10" rx="5" fill="#171121" stroke="'+INK+'"/><rect x="'+(x+34)+'" y="'+(y-3)+'" width="'+(w*v)+'" height="10" rx="5" fill="'+col+'"/><rect x="'+(x+34+w*v-6)+'" y="'+(y-8)+'" width="12" height="20" rx="3" fill="#8f7aa8" stroke="#2b2238" stroke-width="2"/><rect x="'+(x+26)+'" y="'+(y-10)+'" width="'+(w+16)+'" height="24" fill="transparent" data-k="'+key+'" style="cursor:ew-resize"/>'}
-function miniSlider(x,y,w,col,key,label){
-    var o=ref(key), v=o[0][o[1]], lab=(drag&&drag.k==key)?fmt(key,v):((-24+48*v).toFixed(1)+' dB');
-    return T(x,y-8,label,9,'#f3eaff','start')
-      +'<rect x="'+(x+52)+'" y="'+(y-2)+'" width="'+w+'" height="8" rx="4" fill="#171121" stroke="'+INK+'"/>'
-      +'<rect x="'+(x+52)+'" y="'+(y-2)+'" width="'+(w*v)+'" height="8" rx="4" fill="'+col+'"/>'
-      +'<rect x="'+(x+52+w*v-5)+'" y="'+(y-5)+'" width="10" height="16" rx="2.5" fill="#8f7aa8" stroke="#2b2238" stroke-width="2"/>'
-      +'<rect x="'+(x+44)+'" y="'+(y-10)+'" width="'+(w+24)+'" height="22" fill="transparent" data-k="'+key+'" style="cursor:ew-resize"/>'
-      +'<text x="'+(x+52+w+12)+'" y="'+(y+3)+'" text-anchor="start" font-size="8" font-weight="600" fill="#e9defc" font-family="'+FN+'">'+lab+'</text>';
-}
 function tog(cx,y,w,txt,key,col){var o=ref(key),on=o[0][o[1]];return plaque(cx,y,w,txt,on?col:'#4a3d5c',on?INK:'#cbb8e6','data-t="'+key+'"')}
 function xf(){return {lo:20*Math.pow(25,S.g.lo),hi:2000*Math.pow(10,S.g.hi)}}
 function render(){
@@ -110,7 +114,7 @@ function render(){
   });
   s+=tog(240,674,88,'BYPASS','g,byp','#e5484d');
   s+=tog(340,674,70,'LVC','g,lvc','#34d399');
-  s+=miniSlider(420,674,110,'#34d399','g,lvcRed','RED');
+  s+=miniLvcKnob(470,680,18,'#34d399','g,lvcRed');
  }
  s+='</g></svg>';
  var w=document.getElementById('w');w.innerHTML=s;if(JB&&lastH!==H){lastH=H;JB.emitEvent('size',{h:H+4})}
