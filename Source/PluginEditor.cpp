@@ -68,9 +68,21 @@ void CM3CHEditor::resized() { web->setBounds (getLocalBounds()); }
 std::optional<juce::WebBrowserComponent::Resource> CM3CHEditor::getResource (const juce::String& url)
 {
     const auto path = url == "/" ? juce::String ("index.html") : url.fromFirstOccurrenceOf ("/", false, false);
-    if (path == "index.html")
-        return juce::WebBrowserComponent::Resource { toVec (BinaryData::index_html, BinaryData::index_htmlSize), "text/html" };
-    return std::nullopt;
+    if (path != "index.html")
+        return std::nullopt;
+
+    // Refresh the LVC visual when the DSP meter changes, without rerendering during a drag.
+    auto html = juce::String::fromUTF8 (BinaryData::index_html, BinaryData::index_htmlSize);
+    html = html.replace (
+        "lvcAct=typeof m.lvc==='number'?m.lvc:0;var ch=false,dk=drag?gid(drag):null;",
+        "var oldLvcAct=lvcAct;lvcAct=typeof m.lvc==='number'?m.lvc:0;var ch=false,dk=drag?gid(drag):null;");
+    html = html.replace (
+        "if(ch&&!drag)render()",
+        "if(!drag&&(ch||Math.abs(oldLvcAct-lvcAct)>0.05))render()");
+
+    return juce::WebBrowserComponent::Resource {
+        toVec (html.toRawUTF8(), (int) html.getNumBytesAsUTF8()), "text/html"
+    };
 }
 
 void CM3CHEditor::timerCallback()
@@ -88,8 +100,6 @@ void CM3CHEditor::timerCallback()
     {
         if (auto* ranged = dynamic_cast<juce::RangedAudioParameter*> (prm))
         {
-            // Send real parameter units to the HTML. All other UI controls use 0..1;
-            // lvcRed is the exception and is displayed/edited in dB (-30..0).
             float value = ranged->getValue();
             if (ranged->paramID == "lvcRed")
                 value = ranged->convertFrom0to1 (value);
