@@ -9,9 +9,9 @@ namespace
     const char* kBandName[] = { "Low","Mid","High" };
     // valores por defecto = los del HTML
     struct BD { float th, ra, ga, at, re, kn, sam; bool sat, lim; };
-    const BD kDef[3] = { {.55f,.40f,.5f,.30f,.45f,.3f,.4f,true,false},
-                         {.50f,.35f,.5f,.25f,.40f,.3f,.3f,false,false},
-                         {.60f,.50f,.5f,.20f,.40f,.4f,.5f,true,true} };
+    const BD kDef[3] = { {.825f,.339f,.5f,.388f,.259f,.219f,0.f,false,false},
+                         {.835f,.333f,.5f,.393f,.265f,.213f,0.f,false,false},
+                         {.839f,.333f,.5f,.396f,.265f,.200f,0.f,false,false} };
 
     inline float staticGR (float L, float T, float R, float W)
     {
@@ -46,7 +46,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout CM3CHAudioProcessor::createL
             else B (id, nm, k == SAT ? d.sat : k == LIM ? d.lim : false);
         }
     }
-    F ("lo", "Crossover Low", .5f);  F ("hi", "Crossover High", .55f);
+    F ("lo", "Crossover Low", .564f);  F ("hi", "Crossover High", .352f);
     F ("inn", "Input", .5f);         F ("out", "Output", .5f);
     B ("byp", "Bypass", false);      B ("lvc", "LVC", true);   B ("fir", "FIR", false);
     return l;

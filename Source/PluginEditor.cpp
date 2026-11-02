@@ -35,7 +35,7 @@ CM3CHEditor::CM3CHEditor (CM3CHAudioProcessor& p) : AudioProcessorEditor (&p), p
              }));
     addAndMakeVisible (*web);
     web->goToURL (juce::WebBrowserComponent::getResourceProviderRoot());
-    setSize (680, 770);
+    setSize (680, 638);
     startTimerHz (30);
 }
 
